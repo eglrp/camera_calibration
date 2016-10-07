@@ -1,0 +1,4 @@
+build
+CMakeLists.txt.user
+#include/libmv_bundle_adjuster.cc
+#include/libmv_homography.cc

@@ -64,6 +64,55 @@ struct GenericFisheyeReprojectionError {
 };
 
 
+struct PolyError {
+   PolyError(double* coe, double y){
+        coe_ = coe;
+        y_ = y;
+
+   }
+
+   template <typename T>
+   bool operator()(const T* const x, T* residual) const {
+     //residual[0] = T(coe_[0]) - x[0];
+
+     residual[0] = T(coe_[0]) * x[0] + T(coe_[1]) * pow(x[0], 3) + T(coe_[2]) * pow(x[0], 5) + T(coe_[3]) * pow(x[0], 7) -  T(y_);
+     return true;
+   }
+
+double y_;
+double* coe_;
+
+};
+
+
+int SolvePoly(double* coe, double initial, double y, double &root) {
+
+  // The variable to solve for with its initial value.
+  double initial_x = initial;
+  root = initial_x;
+
+  // Build the problem.
+  Problem problem;
+
+  // Set up the only cost function (also known as residual). This uses
+  // auto-differentiation to obtain the derivative (jacobian).
+  CostFunction* cost_function =
+      new AutoDiffCostFunction<PolyError, 1, 1>(new PolyError(coe, y));
+  problem.AddResidualBlock(cost_function, NULL, &root);
+  //problem.SetParameterLowerBound(&x, 0, 0.0);
+
+  // Run the solver!
+  Solver::Options options;
+  options.linear_solver_type = ceres::DENSE_QR;
+  options.minimizer_progress_to_stdout = false;
+  Solver::Summary summary;
+  Solve(options, &problem, &summary);
+
+  //std::cout << summary.BriefReport() << "\n";
+ // std::cout << " root : " << initial_x << " -> " << root << "\n";
+  return 0;
+}
+
 }  // namespace fisheye
 }  // namespace ceres
 

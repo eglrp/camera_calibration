@@ -35,7 +35,7 @@ private:
     Noncopyable& operator =(const Noncopyable &);
 }; //end of class Noncopyable
 
-
+template <typename Obj>
 class AbstractCamera {
 public:
         AbstractCamera() {}
@@ -43,19 +43,25 @@ public:
 	
         virtual ~AbstractCamera() {}
 
-        virtual Vector3d Cam2World(const double &uw, const double &uh) const =0;
-        virtual Vector3d Cam2World(const Vector2d &pixel) const =0;
-        virtual Vector3d Cam2World(const Point2d &pixel) const =0;
+//        virtual Vector3d Cam2World(const double &uw, const double &uh) const =0;
+//        virtual Vector3d Cam2World(const Vector2d &pixel) const =0;
+//        virtual Vector3d Cam2World(const Point2d &pixel) const =0;
 
 
-        virtual Vector2d World2Cam(const double &x, const double &y, const double &z) const =0;
-        virtual Vector2d World2Cam(const Vector3d &xyz) const =0;
-
-        template <typename T>
-        void World2Cam(const T p_w[3], T p_c[2]) const {}
+//        virtual Vector2d World2Cam(const double &x, const double &y, const double &z) const =0;
+//        virtual Vector2d World2Cam(const Vector3d &xyz) const =0;
 
 //        template <typename T>
-//        void Cam2World(const T p_c[2], T p_w[3]) const;
+//        void World2Cam(const T p_w[3], T p_c[2]) const {
+
+//            static_cast<Obj*>(this)->World2Cam(p_w, p_c);
+//        };
+
+
+        virtual void World2Cam(const double p_w[3], double p_c[2]) const =0;
+
+        template <typename T>
+        void Cam2World(const T p_c[2], T p_w[3]) const {}
 
 	inline int width() const { return width_; }
 	inline int height() const { return height_; }
@@ -96,18 +102,44 @@ public:
 //    Mat map_[2];
 //};
 
-class GenericFisheyeCamera : public AbstractCamera {
+
+
+class GenericFisheyeCamera : public AbstractCamera<GenericFisheyeCamera> {
 public:
-    GenericFisheyeCamera() : AbstractCamera() {para_[0] = 240; para_[1] = 376; para_[2] = 100;};
+    GenericFisheyeCamera() : AbstractCamera<GenericFisheyeCamera>() {
+        para_[0] = 486;
+        para_[1] = 648;
+        para_[2] = 268;
+    };
     ~GenericFisheyeCamera() {};
 
     bool     SetCamParaOrDie(string filename) {};
-    Vector3d Cam2World(const double &uw, const double &uh) const {};
-    Vector3d Cam2World(const Vector2d &pixel) const {};
-    Vector3d Cam2World(const Point2d &pixel) const {};
+//    Vector3d Cam2World(const double &uw, const double &uh) const {};
+//    Vector3d Cam2World(const Vector2d &pixel) const {};
+//    Vector3d Cam2World(const Point2d &pixel) const {};
 
-    Vector2d World2Cam(const double &x, const double &y, const double &z) const {};
-    Vector2d World2Cam(const Vector3d &xyz) const {};
+//    Vector2d World2Cam(const double &x, const double &y, const double &z) const {};
+//    Vector2d World2Cam(const Vector3d &xyz) const {};
+
+
+    void World2Cam(const double p_w[3], double p_c[2]) const {
+        double len = sqrt(p_w[0]*p_w[0] + p_w[1]*p_w[1] + p_w[2]*p_w[2]);
+        double theta = acos(p_w[2] / len);
+
+        //para_[2, 3, 4, 5] are the 4-order coefficent for fisheye
+        double radius = double(0.0);
+        for (int i = 0; i < 4; i++) {
+            radius += para_[2 + i] * pow(theta, 2 * i + 1);
+        }
+
+        //para_[0, 1] are the principal point
+        double r_xy = sqrt(p_w[0]*p_w[0] + p_w[1]*p_w[1]);
+
+        p_c[0] = radius * p_w[0] / r_xy + para_[0];
+        p_c[1] = radius * p_w[1] / r_xy + para_[1];
+
+    }
+
 
     template <typename T>
     void World2Cam(const T p_w[3], T p_c[2]) const {
@@ -128,6 +160,11 @@ public:
 
     }
 
+    template <typename T>
+    void Cam2World(const T p_c[2], T p_w[3]) const {
+
+    }
+
     double* para_ptr() {return para_;}
 
     double para_[6];
@@ -135,18 +172,13 @@ public:
 
 };
 
-class StereoPinholeCamera : public AbstractCamera {
-public:
-    StereoPinholeCamera() {};
-    ~StereoPinholeCamera() {};
 
-};
-
+template <typename Obj>
 class AbstractFrame {
     //typedef std::shared_ptr<AbstractFrame>  FramePtr;
 public:
     AbstractFrame() {}
-    AbstractFrame(AbstractCamera* cam_ptr, const Mat& img, double timestamp) {
+    AbstractFrame(AbstractCamera<Obj>* cam_ptr, const Mat& img, double timestamp) {
         cam_ptr_ = cam_ptr;
         img_ = img;
         timestamp_ =timestamp;
@@ -162,41 +194,44 @@ public:
     int             id_;
 
     double          timestamp_;
-    AbstractCamera* cam_ptr_;
+    AbstractCamera<Obj>* cam_ptr_;
     Mat             img_;
 };
 
-class FeatureFrame : public AbstractFrame {
-public:
-    FeatureFrame(AbstractCamera* cam_ptr, const Mat& img, double timestamp) {}
-private:
+//class FeatureFrame : public AbstractFrame {
+//public:
+//    FeatureFrame(AbstractCamera* cam_ptr, const Mat& img, double timestamp) {}
+//private:
 
-};
+//};
 
-class DirectFrame : public AbstractFrame {
-public:
-    DirectFrame(AbstractCamera* cam_ptr, const Mat& img, double timestamp) {}
-private:
+//class DirectFrame : public AbstractFrame {
+//public:
+//    DirectFrame(AbstractCamera* cam_ptr, const Mat& img, double timestamp) {}
+//private:
 
 
-};
+//};
 
-class CalibrationBoardFrame : public AbstractFrame {
+template <typename Obj>
+class CalibrationBoardFrame : public AbstractFrame<Obj> {
 
     enum PatternType{CHESSBOARD=0, CIRCLE, ASYMMTRICCIRCLE, WHITECIRCLE};
 
 public:
-    CalibrationBoardFrame(AbstractCamera* cam_ptr, const Mat& img, double timestamp): AbstractFrame(cam_ptr, img, timestamp) {}
-    CalibrationBoardFrame(AbstractCamera* cam_ptr, const Mat& img, double timestamp, int w, int h, int len): AbstractFrame(cam_ptr, img, timestamp) {
+    CalibrationBoardFrame(AbstractCamera<Obj>* cam_ptr, const Mat& img, double timestamp): AbstractFrame<Obj>(cam_ptr, img, timestamp) {}
+    CalibrationBoardFrame(AbstractCamera<Obj>* cam_ptr, const Mat& img, double timestamp, int w, int h, int len): AbstractFrame<Obj>(cam_ptr, img, timestamp) {
         pattern_width_ = w;
         pattern_height_= h;
 
-        omega_t_[0] = 0.01;
-        omega_t_[1] = 0.02;
+        omega_t_[0] = 0;
+        omega_t_[1] = 0;
         omega_t_[2] = 0.05;
         omega_t_[3] = 1;
         omega_t_[4] = 1;
-        omega_t_[5] = 3;
+        omega_t_[5] = 1;
+
+        reprojection_error_ = 0;
     }
 
     ~CalibrationBoardFrame() {}
@@ -208,16 +243,16 @@ public:
         switch(pattern_type) {
         case 0:
             found = findChessboardCorners(tmp, board_size, corners);
-            if (!found) {
-                cv::resize(tmp, tmp, cv::Size(), 2.0, 2.0);
-                found = findChessboardCorners(tmp, board_size, corners);
-                if (found) {
-                    for (int i = 0; i < corners.size(); i++) {
-                        corners[i].x *= 0.5;
-                        corners[i].y *= 0.5;
-                    }
-                }
-            }
+//            if (!found) {
+//                cv::resize(tmp, tmp, cv::Size(), 2.0, 2.0);
+//                found = findChessboardCorners(tmp, board_size, corners);
+//                if (found) {
+//                    for (int i = 0; i < corners.size(); i++) {
+//                        corners[i].x *= 0.5;
+//                        corners[i].y *= 0.5;
+//                    }
+//                }
+//            }
             //cout << "grid: " << found << board_size <<endl;
             break;
         case 1:
@@ -312,8 +347,9 @@ public:
     int pattern_height_;
     vector<cv::Point2f> features;
 
+    double reprojection_error_;
+
     static double** pattern_point3d_;
-private:
 
 };
 

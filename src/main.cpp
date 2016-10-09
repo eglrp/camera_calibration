@@ -6,45 +6,45 @@
 #include <opencv2/highgui/highgui.hpp>
 
 using std::vector;
+using ceres::fisheye::GenericFisheyeReprojectionError;
+using vslam::CalibrationBoardFrame;
 using vslam::GenericFisheyeCamera;
 using vslam::AbstractFrame;
 using vslam::AbstractCamera;
 
-using ceres::fisheye::GenericFisheyeReprojectionError;
-using vslam::CalibrationBoardFrame;
+\
+template <class CameraType>
+double** CalibrationBoardFrame<CameraType>::pattern_point3d_ = NULL;
 
-template <typename Obj>
-double** CalibrationBoardFrame<Obj>::pattern_point3d_ = NULL;
-
-template <typename Obj>
-int AbstractFrame<Obj>::frame_counter_ = 0;
+template <class CameraType>
+int AbstractFrame<CameraType>::frame_counter_ = 0;
 
 extern int QtDisplayThread();
 
 namespace ceres {
-template <typename Obj>
+
+template <class CameraType>
 class CameraCalibration {
     enum PatternType{CHESSBOARD=0, CIRCLE, ASYMMTRICCIRCLE, WHITECIRCLE};
 public:
 
     CameraCalibration() {
-        cam_ptr_ = new GenericFisheyeCamera();
+        cam_ptr_ = new CameraType();
         pattern_type_ = CHESSBOARD;
         grid_len_ = 0.25;
         board_size_.width = 10;
         board_size_.height = 14;
-        CalibrationBoardFrame<Obj>::ComputePatternPoints3D(board_size_.width, board_size_.height, grid_len_);
-
+        CalibrationBoardFrame<CameraType>::ComputePatternPoints3D(board_size_.width, board_size_.height, grid_len_);
     }
 
     ~CameraCalibration() {
-
         int sz = frame_ptrs_.size();
         std::cout << "Active frames: " << sz            <<std::endl;
         for (int i = 0; i < sz; ++i) {
             delete frame_ptrs_[i];
         }
-        CalibrationBoardFrame<Obj>::Delete(board_size_.width, board_size_.height);
+        CalibrationBoardFrame<CameraType>::Delete(board_size_.width, board_size_.height);
+        delete cam_ptr_;
     }
 
     vector<string> GetFilesFromDir(string dir_name) {
@@ -75,36 +75,33 @@ public:
     }
 
     void GetImagesFromDir(string dir_name) {
-         vector<string> names = GetFilesFromDir(dir_name);
-         int sz = names.size();
-         for (int i = 0 ; i < sz; ++i) {
-            Mat img = cv::imread(dir_name + names[i], 0);
-            std::cout << dir_name + names[i] /*<<std::endl*/;
+        file_dir_ = dir_name;
+        vector<string> image_names = GetFilesFromDir(dir_name);
+        int sz = image_names.size();
+
+        for (int i = 0 ; i < sz; ++i) {
+            Mat img = cv::imread(dir_name + image_names[i], 0);
+            std::cout << dir_name + image_names[i] /*<<std::endl*/;
             if (img.empty()) continue;
+            CalibrationBoardFrame<CameraType>* frame_ptr = new CalibrationBoardFrame<CameraType>(cam_ptr_, img, 0, board_size_.width, board_size_.height, grid_len_);
+            frame_ptr->img_name_ = image_names[i];
 
-            CalibrationBoardFrame<Obj>* frame_ptr = new CalibrationBoardFrame<Obj>(cam_ptr_, img, 0, board_size_.width, board_size_.height, grid_len_);
-
-            static int j = 0;
-            cv::Size board_size(10, 14);
-            bool ok = frame_ptr->DetectCorners(frame_ptr->img_, board_size, pattern_type_, frame_ptr->features);
+            bool ok = frame_ptr->DetectCorners(frame_ptr->img_, board_size_, pattern_type_, frame_ptr->features);
             if (ok) {
                 //cv::drawChessboardCorners(frame_ptr->img_, board_size, frame_ptr->features, 1);
                 //cv::circle(frame_ptr->img_, frame_ptr->features[j++], 3, cv::Scalar(0), 4);
                 //cv::imshow("img", frame_ptr->img_);
                 //cv::waitKey(1);
-                 AddFrames(frame_ptr);
-                 std::cout << " ok!" <<std::endl;
+                AddFrames(frame_ptr);
+                std::cout << " ok!" <<std::endl;
             } else {
                 std::cout << " not ok" <<std::endl;
 
             }
-         }
-
-
+        }
     }
 
-    void AddFrames(CalibrationBoardFrame<Obj> *frame_ptr) {
-
+    void AddFrames(CalibrationBoardFrame<CameraType> *frame_ptr) {
         int sz = frame_ptr->features.size();
         double p_c[2];
         double p_w[3];
@@ -113,7 +110,6 @@ public:
         double initial = 0;
         double root = 0;
 
-        //ceres::fisheye::SolvePoly(coe, initial, root);
         for (int i = 0 ; i < sz; ++i) {
             p_c[0] = frame_ptr->features[i].x;
             p_c[1] = frame_ptr->features[i].y;
@@ -121,18 +117,15 @@ public:
             double py_c = p_c[1] - cam_ptr_->para_ptr()[1];
             double radius = sqrt(px_c*px_c + py_c*py_c);
 
-            ceres::fisheye::SolvePoly(coe, initial, radius, root);
+            cam_ptr_->SolvePoly(coe, initial, radius, root);
 
             //cam_ptr_->Cam2World(p_c, p_w);
-
         }
-
         frame_ptrs_.push_back(frame_ptr);
     }
 
-    void Calibrate(vector<CalibrationBoardFrame<Obj>*> &frame_ptrs) {
+    void Calibrate(vector<CalibrationBoardFrame<CameraType>*> &frame_ptrs) {
 
-        //ceres::Problem::Options problem_options;
         ceres::Problem problem;
         int sz = frame_ptrs.size();
 
@@ -145,20 +138,19 @@ public:
                     double observed_x = frame_ptrs[i]->features[idx].x;
                     double observed_y = frame_ptrs[i]->features[idx].y;
 
-                    ceres::CostFunction* cost_function = GenericFisheyeReprojectionError::Create(observed_x, observed_y);
+                    ceres::CostFunction* cost_function = GenericFisheyeReprojectionError<CameraType>::Create(observed_x, observed_y);
                     problem.AddResidualBlock(cost_function,
-                                             NULL /* squared loss */,
+                                             NULL,
                                              frame_ptrs[i]->cam_ptr_->para_ptr(),
                                              frame_ptrs[i]->omega_t_,
-                                             CalibrationBoardFrame<Obj>::pattern_point3d_[idx]);
+                                             CalibrationBoardFrame<CameraType>::pattern_point3d_[idx]);
 
-                    problem.SetParameterBlockConstant(CalibrationBoardFrame<Obj>::pattern_point3d_[idx]);
+                    problem.SetParameterBlockConstant(CalibrationBoardFrame<CameraType>::pattern_point3d_[idx]);
                     //problem.SetParameterLowerBound(&x, 0, 0.0);
                 }
             }
         }
 
-        // Configure the solver.
         ceres::Solver::Options options;
         options.use_nonmonotonic_steps = true;
         options.preconditioner_type = ceres::SCHUR_JACOBI;
@@ -166,22 +158,26 @@ public:
         options.use_inner_iterations = true;
         options.max_num_iterations = 1000;
         options.minimizer_progress_to_stdout = true;
+//      ceres::Solver::Options options;
+//      options.linear_solver_type = ceres::DENSE_QR;;
+//      options.max_num_iterations = 1000;
 
-//        ceres::Solver::Options options;
-//        options.linear_solver_type = ceres::DENSE_QR;;
-//        options.max_num_iterations = 1000;
-          // Solve!
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
 
         std::cout << "Final report:\n" << summary.FullReport();
-        std::cout << "coef: " << cam_ptr_->para_ptr()[2] << " " << cam_ptr_->para_ptr()[3] <<" " <<cam_ptr_->para_ptr()[4] <<" " <<cam_ptr_->para_ptr()[5] <<std::endl;
 
-        std::cout << "center(h&w): " << cam_ptr_->para_ptr()[1] << " " << cam_ptr_->para_ptr()[0] <<std::endl;
-        //std::cout << "point: " << CalibrationBoardFrame::pattern_point3d_[3][0] << " " << CalibrationBoardFrame::pattern_point3d_[3][1] << " " << CalibrationBoardFrame::pattern_point3d_[3][2] <<std::endl;
+        std::cout << "coef: [ " ;
+        for (int j = 0 ; j < cam_ptr_->poly_order_; ++j) {
+            std::cout<< cam_ptr_->para_ptr()[2+j] << " " ;
+        }
+        std::cout << " ]" << std::endl;
+
+        std::cout << "center(h&w): [ " << cam_ptr_->para_ptr()[1] << " " << cam_ptr_->para_ptr()[0] << " ]" <<std::endl;
+        //std::cout << "point: " << CalibrationBoardFrame<CameraType>::pattern_point3d_[3][0] << " " << CalibrationBoardFrame<CameraType>::pattern_point3d_[3][1] << " " << CalibrationBoardFrame<CameraType>::pattern_point3d_[3][2] <<std::endl;
     }
 
-    void Reproject(vector<CalibrationBoardFrame<Obj>*> &frame_ptrs) {
+    void Reproject(vector<CalibrationBoardFrame<CameraType>*> &frame_ptrs) {
         int sz = frame_ptrs.size();
         double error = 0;
 
@@ -197,16 +193,14 @@ public:
                     double observed_y = frame_ptrs[i]->features[idx].y;
 
                     double p[3];
-                    ceres::AngleAxisRotatePoint(frame_ptrs[i]->omega_t_, CalibrationBoardFrame<Obj>::pattern_point3d_[idx], p);
+                    ceres::AngleAxisRotatePoint(frame_ptrs[i]->omega_t_, CalibrationBoardFrame<CameraType>::pattern_point3d_[idx], p);
                     // omega_t[3,4,5] are the translation.
                     p[0] += frame_ptrs[i]->omega_t_[3];
                     p[1] += frame_ptrs[i]->omega_t_[4];
                     p[2] += frame_ptrs[i]->omega_t_[5];
 
                     double pixel[2];
-
-                    cam_ptr_->World2Cam(p, pixel);
-
+                    frame_ptrs[i]->cam_ptr_->World2Cam(p, pixel);
                     cv::circle(frame_ptrs[i]->img_, cv::Point(observed_x, observed_y), 3, cv::Scalar(0, 255, 0), 1);
                     cv::circle(frame_ptrs[i]->img_, cv::Point(pixel[0], pixel[1]), 3, cv::Scalar(0, 0, 255), 1);
 
@@ -214,11 +208,21 @@ public:
                     frame_ptrs[i]->reprojection_error_ += err;
                 }
             }
+
             frame_ptrs[i]->reprojection_error_ /= (frame_ptrs[i]->pattern_width_ * frame_ptrs[i]->pattern_height_);
             error += frame_ptrs[i]->reprojection_error_;
-            //std::cout <<"err: " <<  frame_ptrs[i]->reprojection_error_ <<std::endl;
+
+            char text[100];
+            sprintf(text, "err_%1.3f_", frame_ptrs[i]->reprojection_error_);
+            string err_str(text);
+
+            //std::cout << frame_ptrs[i]->img_name_ + " err: " <<  frame_ptrs[i]->reprojection_error_ <<std::endl;
+
+            cv::putText(frame_ptrs[i]->img_, err_str, cv::Point(10, 30), 3, 0.8, cv::Scalar(0, 0, 255), 1, 8, false);
+            cv::imwrite(file_dir_ + "error/"+ err_str+frame_ptrs[i]->img_name_, frame_ptrs[i]->img_);
+
             cv::imshow("img", frame_ptrs[i]->img_);
-            cv::waitKey(0);
+            cv::waitKey(1);
         }
         error /= sz;
         std::cout <<"total err: " <<  error  <<std::endl;
@@ -227,8 +231,10 @@ public:
     double grid_len_;
     int pattern_type_;
     cv::Size board_size_;
-    vector<CalibrationBoardFrame<Obj>*> frame_ptrs_;
-    AbstractCamera<Obj>* cam_ptr_;
+    vector<CalibrationBoardFrame<CameraType>*> frame_ptrs_;
+    CameraType* cam_ptr_;
+
+    string file_dir_;
 };
 } //ceres_calibration
 
@@ -236,13 +242,11 @@ public:
 
 string dir_name = "./data/";
 int MainThread() {
-    //std::cout << "hello" << std::endl;
-    ceres::CameraCalibration<GenericFisheyeCamera> test;
+    ceres::CameraCalibration<GenericFisheyeCamera<4> > test;
     test.GetImagesFromDir(dir_name);
     test.Calibrate(test.frame_ptrs_);
     test.Reproject(test.frame_ptrs_);
 	return 0;
-
 }
 
 int  main() {

@@ -31,6 +31,7 @@ public:
 
     T predicted_pixel[2];
     cam_.World2Cam(camera_intrinsic, p, predicted_pixel);
+
     residuals[0] = predicted_pixel[0] - T(observed_x_);
     residuals[1] = predicted_pixel[1] - T(observed_y_);
 

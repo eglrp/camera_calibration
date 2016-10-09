@@ -57,7 +57,7 @@ public:
         void World2Cam(const T p_w[3], T p_c[2]) const {std::cout << "W2C from AbstractCamera Error!"<<std::endl;}
 
         template <typename T>
-        void Cam2World(const T p_c[2], T p_w[3]) const {}
+        void Cam2World(const T p_c[2], T p_w[3]) const {std::cout << "C2W from AbstractCamera Error!"<<std::endl;}
 
 	inline int width() const { return width_; }
 	inline int height() const { return height_; }
@@ -116,10 +116,7 @@ public:
         double* coe_;
     };
 
-    int SolvePoly(double* coe, double initial, double y, double &root) {
-
-      double initial_x = initial;
-      root = initial_x;
+    int SolvePoly(double* coe, double y, double &root) {
 
       ceres::Problem problem;
 
@@ -193,11 +190,17 @@ public:
 
     template <typename T>
     void Cam2World(const T p_c[2], T p_w[3]) const {
-//        T px_c = p_c[0] - cam_ptr_->para_ptr()[0];
-//        T py_c = p_c[1] - cam_ptr_->para_ptr()[1];
-//        T radius = sqrt(px_c*px_c + py_c*py_c);
 
-//        cam_ptr_->SolvePoly(coe, initial, radius, root);
+        T px_c = p_c[0] - T(para_[0]);
+        T py_c = p_c[1] - T(para_[1]);
+        T radius = sqrt(px_c*px_c + py_c*py_c);
+        T theta = T(0.0);
+
+        T coe[N_ORDER];
+        for (int i = 0; i < N_ORDER; ++i) {
+            coe[i] = T(para_[2 + i]);
+        }
+        //SolvePoly(coe, 5, theta);
     }
 
     const int   coe_num_;

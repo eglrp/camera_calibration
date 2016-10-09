@@ -12,7 +12,6 @@ using vslam::GenericFisheyeCamera;
 using vslam::AbstractFrame;
 using vslam::AbstractCamera;
 
-\
 template <class CameraType>
 double** CalibrationBoardFrame<CameraType>::pattern_point3d_ = NULL;
 
@@ -113,13 +112,11 @@ public:
         for (int i = 0 ; i < sz; ++i) {
             p_c[0] = frame_ptr->features[i].x;
             p_c[1] = frame_ptr->features[i].y;
-            double px_c = p_c[0] - cam_ptr_->para_ptr()[0];
-            double py_c = p_c[1] - cam_ptr_->para_ptr()[1];
-            double radius = sqrt(px_c*px_c + py_c*py_c);
+//            double px_c = p_c[0] - cam_ptr_->para_ptr()[0];
+//            double py_c = p_c[1] - cam_ptr_->para_ptr()[1];
+//            double radius = sqrt(px_c*px_c + py_c*py_c);
 
-            cam_ptr_->SolvePoly(coe, initial, radius, root);
-
-            //cam_ptr_->Cam2World(p_c, p_w);
+            frame_ptr->cam_ptr_->Cam2World(p_c, p_w);
         }
         frame_ptrs_.push_back(frame_ptr);
     }

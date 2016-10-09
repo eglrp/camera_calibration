@@ -27,6 +27,9 @@ using cv::Mat;
 
 namespace vslam{
 
+//int SolvePoly(double* coe, double y, double &root);
+
+
 class  Noncopyable
 {
 protected:
@@ -98,45 +101,45 @@ public:
 //    Mat map_[2];
 //};
 
+
+struct PolyError {
+   PolyError(double* coe, double y): coe_(coe), y_(y) {}
+
+    template <typename T>
+    bool operator()(const T* const x, T* residual) const {
+        //residual[0] = T(coe_[0]) - x[0];
+        residual[0] = T(coe_[0]) * x[0] + T(coe_[1]) * pow(x[0], 3) + T(coe_[2]) * pow(x[0], 5) + T(coe_[3]) * pow(x[0], 7) -  T(y_);
+        return true;
+    }
+
+    double  y_;
+    double* coe_;
+};
+
+template <typename T>
+int SolvePoly(T* coe, T y, T &root) {
+
+    ceres::Problem problem;
+
+    ceres::CostFunction* cost_function =
+            new ceres::AutoDiffCostFunction<PolyError, 1, 1>(new PolyError(coe, y));
+    problem.AddResidualBlock(cost_function, NULL, &root);
+    //problem.SetParameterLowerBound(&x, 0, 0.0);
+
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_QR;
+    options.minimizer_progress_to_stdout = false;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+
+    //std::cout << summary.BriefReport() << "\n";
+    std::cout << " root : " << 0 << " -> " << root << "\n";
+    return 0;
+}
+
 template<int N_ORDER>
 class GenericFisheyeCamera : public AbstractCamera {
 public:
-
-    struct PolyError {
-       PolyError(double* coe, double y): coe_(coe), y_(y) {}
-
-        template <typename T>
-        bool operator()(const T* const x, T* residual) const {
-            //residual[0] = T(coe_[0]) - x[0];
-            residual[0] = T(coe_[0]) * x[0] + T(coe_[1]) * pow(x[0], 3) + T(coe_[2]) * pow(x[0], 5) + T(coe_[3]) * pow(x[0], 7) -  T(y_);
-            return true;
-        }
-
-        double y_;
-        double* coe_;
-    };
-
-    int SolvePoly(double* coe, double y, double &root) {
-
-      ceres::Problem problem;
-
-      ceres::CostFunction* cost_function =
-          new ceres::AutoDiffCostFunction<PolyError, 1, 1>(new PolyError(coe, y));
-      problem.AddResidualBlock(cost_function, NULL, &root);
-      //problem.SetParameterLowerBound(&x, 0, 0.0);
-
-      // Run the solver!
-      ceres::Solver::Options options;
-      options.linear_solver_type = ceres::DENSE_QR;
-      options.minimizer_progress_to_stdout = false;
-      ceres::Solver::Summary summary;
-      ceres::Solve(options, &problem, &summary);
-
-      //std::cout << summary.BriefReport() << "\n";
-     // std::cout << " root : " << initial_x << " -> " << root << "\n";
-      return 0;
-    }
-
     GenericFisheyeCamera() : AbstractCamera(), coe_num_(2 + N_ORDER), poly_order_(N_ORDER) {}
     ~GenericFisheyeCamera() {}
 
@@ -188,19 +191,30 @@ public:
 
     }
 
-    template <typename T>
-    void Cam2World(const T p_c[2], T p_w[3]) const {
+    void Cam2World(const double p_c[2], double p_w[3]) const {
 
-        T px_c = p_c[0] - T(para_[0]);
-        T py_c = p_c[1] - T(para_[1]);
-        T radius = sqrt(px_c*px_c + py_c*py_c);
-        T theta = T(0.0);
+        double px_c = p_c[0] - para_[0];
+        double py_c = p_c[1] - para_[1];
+        double radius = sqrt(px_c*px_c + py_c*py_c);
+        double theta = 0.0;
 
-        T coe[N_ORDER];
+        double coe[N_ORDER];
         for (int i = 0; i < N_ORDER; ++i) {
-            coe[i] = T(para_[2 + i]);
+            coe[i] = para_[2 + i];
         }
-        //SolvePoly(coe, 5, theta);
+//        std::cout << coe[0] << " " << coe[1] << " " << coe[2] << std::endl;
+//        std::cout << "radius: " << radius<< std::endl;
+
+//        coe[0] = 268.2;
+//        coe[1] = 0;
+//        coe[2] = 0;
+//        coe[3] = 0;
+//        radius = 510;
+        SolvePoly(coe, radius, theta);
+
+        p_w[0] = px_c / radius * sin(theta);
+        p_w[1] = py_c / radius * cos(theta);
+        p_w[2] = cos(theta);
     }
 
     const int   coe_num_;

@@ -84,6 +84,11 @@ public:
             if (img.empty()) continue;
             CalibrationBoardFrame<CameraType>* frame_ptr = new CalibrationBoardFrame<CameraType>(cam_ptr_, img, 0, board_size_.width, board_size_.height, grid_len_);
             frame_ptr->img_name_ = image_names[i];
+            if(i == 0) {
+                frame_ptr->cam_ptr_->para_ptr()[0] = img.cols / 2.0;
+                frame_ptr->cam_ptr_->para_ptr()[1] = img.rows / 2.0;
+                frame_ptr->cam_ptr_->para_ptr()[2] = img.rows / 2.0;
+            }
 
             bool ok = frame_ptr->DetectCorners(frame_ptr->img_, board_size_, pattern_type_, frame_ptr->features);
             if (ok) {
@@ -105,10 +110,10 @@ public:
         double p_c[2];
         double p_w[3];
 
-        double coe[5] = {268.2, 0, 0, 0};
-        double initial = 0;
-        double root = 0;
-
+        p_c[0] = 1;
+        p_c[1] = 1;
+        frame_ptr->cam_ptr_->Cam2World(p_c, p_w);
+        //std::cout << p_w[0] << " " << p_w[1] << " " << p_w[2] << std::endl;
         for (int i = 0 ; i < sz; ++i) {
             p_c[0] = frame_ptr->features[i].x;
             p_c[1] = frame_ptr->features[i].y;
@@ -116,7 +121,7 @@ public:
 //            double py_c = p_c[1] - cam_ptr_->para_ptr()[1];
 //            double radius = sqrt(px_c*px_c + py_c*py_c);
 
-            frame_ptr->cam_ptr_->Cam2World(p_c, p_w);
+            //frame_ptr->cam_ptr_->Cam2World(p_c, p_w);
         }
         frame_ptrs_.push_back(frame_ptr);
     }

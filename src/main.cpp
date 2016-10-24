@@ -245,7 +245,7 @@ public:
 
 
 
-string dir_name = "./data/";
+string dir_name = "/home/qichen/git_ws/camera_calibration/data/";
 int MainThread() {
     ceres::CameraCalibration<GenericFisheyeCamera<3> > test;
     test.GetImagesFromDir(dir_name);

@@ -5,7 +5,7 @@ set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
 set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -std=c++11 -O3 -Wall -pthread")
 set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} -std=c++11 -O3 -Wall -pthread")
-#set(CMAKE_PREFIX_PATH "/opt/Qt5.4.2/5.4/gcc_64")
+set(CMAKE_PREFIX_PATH "/opt/Qt5.4.2/5.4/gcc_64")
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 #set(CMAKE_AUTOMOC ON)
 

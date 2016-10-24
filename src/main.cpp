@@ -82,6 +82,9 @@ public:
             Mat img = cv::imread(dir_name + image_names[i], 0);
             std::cout << dir_name + image_names[i] /*<<std::endl*/;
             if (img.empty()) continue;
+//            cv::imshow("img", img);
+//            cv::waitKey(0);
+
             CalibrationBoardFrame<CameraType>* frame_ptr = new CalibrationBoardFrame<CameraType>(cam_ptr_, img, 0, board_size_.width, board_size_.height, grid_len_);
             frame_ptr->img_name_ = image_names[i];
             if(i == 0) {
@@ -110,10 +113,10 @@ public:
         double p_c[2];
         double p_w[3];
 
-        p_c[0] = 1;
-        p_c[1] = 1;
-        frame_ptr->cam_ptr_->Cam2World(p_c, p_w);
-        //std::cout << p_w[0] << " " << p_w[1] << " " << p_w[2] << std::endl;
+//        p_c[0] = 500;
+//        p_c[1] = 500;
+//        frame_ptr->cam_ptr_->Cam2World(p_c, p_w);
+//        std::cout << p_w[0] << " " << p_w[1] << " " << p_w[2] << std::endl;
         for (int i = 0 ; i < sz; ++i) {
             p_c[0] = frame_ptr->features[i].x;
             p_c[1] = frame_ptr->features[i].y;
@@ -244,7 +247,7 @@ public:
 
 string dir_name = "./data/";
 int MainThread() {
-    ceres::CameraCalibration<GenericFisheyeCamera<4> > test;
+    ceres::CameraCalibration<GenericFisheyeCamera<3> > test;
     test.GetImagesFromDir(dir_name);
     test.Calibrate(test.frame_ptrs_);
     test.Reproject(test.frame_ptrs_);

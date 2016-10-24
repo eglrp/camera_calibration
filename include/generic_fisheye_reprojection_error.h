@@ -59,7 +59,7 @@ public:
 
   static ceres::CostFunction* Create(const double observed_x,
                                      const double observed_y) {
-    return (new ceres::AutoDiffCostFunction<GenericFisheyeReprojectionError, 2, 6, 6, 3>(
+    return (new ceres::AutoDiffCostFunction<GenericFisheyeReprojectionError, 2, 5, 6, 3>(
                 new GenericFisheyeReprojectionError(observed_x, observed_y)));
   }
 

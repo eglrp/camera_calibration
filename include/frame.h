@@ -133,7 +133,7 @@ int SolvePoly(T* coe, T y, T &root) {
     ceres::Solve(options, &problem, &summary);
 
     //std::cout << summary.BriefReport() << "\n";
-    std::cout << " root : " << 0 << " -> " << root << "\n";
+    //std::cout << " root : " << 0 << " -> " << root << "\n";
     return 0;
 }
 
@@ -161,7 +161,8 @@ public:
         //para_[2, 3, 4, 5] are the 4-order coefficent for fisheye
         T radius = T(0.0);
         for (int i = 0; i < N_ORDER; i++) {
-            radius += T(para_[2 + i]) * pow(theta, 2 * i + 1);
+            //radius += T(para_[2 + i]) * pow(theta, 2 * i + 1);
+            radius += T(para_[2 + i]) * pow(theta, i + 1);
         }
 
         //para_[0, 1] are the principal point
@@ -180,7 +181,8 @@ public:
         //para_[2, 3, 4, 5] are the 4-order coefficent for fisheye
         T radius = T(0.0);
         for (int i = 0; i < N_ORDER; i++) {
-            radius += para[2 + i] * pow(theta, 2 * i + 1);
+            //radius += para[2 + i] * pow(theta, 2 * i + 1);
+            radius += para[2 + i] * pow(theta, i + 1);
         }
 
         //para_[0, 1] are the principal point
